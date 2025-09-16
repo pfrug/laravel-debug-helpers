@@ -1,0 +1,41 @@
+{
+    "name": "pfrug/laravel-debug-helpers",
+    "description": "Useful debugging helpers for Laravel development",
+    "type": "library",
+    "keywords": [
+        "laravel",
+        "debug",
+        "helpers",
+        "development"
+    ],
+    "homepage": "https://github.com/pfrug/laravel-debug-helpers",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "pfrug",
+            "homepage": "https://github.com/pfrug"
+        }
+    ],
+    "require": {
+        "php": "^8.0",
+        "illuminate/support": "^8.0|^9.0|^10.0|^11.0",
+        "illuminate/database": "^8.0|^9.0|^10.0|^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Pfrug\\LaravelDebugHelpers\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Pfrug\\LaravelDebugHelpers\\LaravelDebugHelpersServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
