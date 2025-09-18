@@ -19,21 +19,21 @@ You can use these in place of `dump()` and `dd()` when working with Eloquent mod
 
 ---
 
-### DbHelper
+### SqlHelper
 
-#### `DbHelper::sqlWithBindings($query, $print = true)`
+#### `SqlHelper::sqlFromBindings($query, $print = true)`
 
 Combines `toSql()` and `getBindings()` on a query builder or Eloquent builder to output the full SQL string with all bindings inlined.
 
 This is useful for debugging complex queries.
 
 ```php
-use LaravelDebugHelpers\DbHelper;
+use LaravelDebugHelpers\SqlHelper;
 
 $query = User::where('email', 'test@example.com')
              ->where('active', 1);
 
-DbHelper::sqlWithBindings($query);
+SqlHelper::sqlFromBindings($query);
 ```
 
 Output:
