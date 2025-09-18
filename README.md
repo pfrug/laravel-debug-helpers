@@ -51,7 +51,7 @@ If `$print` is `false`, it returns the SQL string instead of printing and stoppi
 Install via composer:
 
 ```bash
-composer require your-vendor/laravel-debug-helpers
+composer require pfrug/laravel-debug-helpers
 ```
 
 If package auto-discovery is disabled, register the service provider manually in `config/app.php`:
