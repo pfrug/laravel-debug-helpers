@@ -31,9 +31,9 @@ class SqlHelper
             } else {
                 echo "<pre>" . htmlspecialchars($sql) . "</pre>";
             }
-            exit;
         }
 
         return $sql;
     }
+
 }

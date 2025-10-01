@@ -33,6 +33,7 @@ class SqlFormatter
         $sql = preg_replace_callback('/\b(LEFT OUTER JOIN|RIGHT OUTER JOIN|FULL OUTER JOIN|LEFT JOIN|RIGHT JOIN|INNER JOIN|OUTER JOIN|JOIN)\b/i', fn($m) => "\n    " . strtoupper($m[1]), $sql);
         $sql = preg_replace_callback('/\b(SELECT|FROM|WHERE|ORDER BY|GROUP BY|HAVING|LIMIT|OFFSET)\b/i', fn($m) => "\n" . strtoupper($m[1]), $sql);
         $sql = preg_replace_callback('/\b(AND|OR)\b/i', fn($m) => "\n" . strtoupper($m[1]), $sql);
+        $sql = preg_replace_callback('/\b(EXISTS)\s*\(/i', fn($m) => strtoupper($m[1]) . " (", $sql);
 
         return array_filter(array_map('trim', explode("\n", $sql)));
     }
@@ -118,6 +119,9 @@ class SqlFormatter
     {
         $formatted = [];
         $insideParentheses = false;
+        $insideExists = false;
+        $existsDepth = 0;
+        $parenCount = 0;
 
         foreach ($lines as $line) {
             $trimmedLine = trim($line);
@@ -125,16 +129,45 @@ class SqlFormatter
 
             $upperLine = strtoupper($trimmedLine);
 
-            // SELECT with column separation
+            // Handle EXISTS
+            if (str_contains($upperLine, 'EXISTS (')) {
+                $formatted[] = '    ' . $trimmedLine;
+                $insideExists = true;
+                $existsDepth = 1;
+                $parenCount = 1;
+                continue;
+            }
+
+            // Count parentheses to know when EXISTS closes
+            if ($insideExists) {
+                $openParens = substr_count($trimmedLine, '(');
+                $closeParens = substr_count($trimmedLine, ')');
+                $parenCount += $openParens - $closeParens;
+            }
+
+            // SELECT with column separation (check if inside EXISTS)
             if (str_starts_with($upperLine, 'SELECT')) {
-                $formatted[] = 'SELECT';
-                $columns = explode(',', substr($trimmedLine, 6));
-                foreach ($columns as $i => $col) {
-                    $col = trim($col);
-                    if ($i === count($columns) - 1) {
-                        $formatted[] = '    ' . $col;
-                    } else {
-                        $formatted[] = '    ' . $col . ',';
+                if ($insideExists) {
+                    $formatted[] = str_repeat('    ', $existsDepth + 1) . 'SELECT';
+                    $columns = explode(',', substr($trimmedLine, 6));
+                    foreach ($columns as $i => $col) {
+                        $col = trim($col);
+                        if ($i === count($columns) - 1) {
+                            $formatted[] = str_repeat('    ', $existsDepth + 2) . $col;
+                        } else {
+                            $formatted[] = str_repeat('    ', $existsDepth + 2) . $col . ',';
+                        }
+                    }
+                } else {
+                    $formatted[] = 'SELECT';
+                    $columns = explode(',', substr($trimmedLine, 6));
+                    foreach ($columns as $i => $col) {
+                        $col = trim($col);
+                        if ($i === count($columns) - 1) {
+                            $formatted[] = '    ' . $col;
+                        } else {
+                            $formatted[] = '    ' . $col . ',';
+                        }
                     }
                 }
                 continue;
@@ -142,13 +175,21 @@ class SqlFormatter
 
             // Main SQL keywords
             if (preg_match('/^(FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|OFFSET)(\s|$)/i', $trimmedLine)) {
-                $formatted[] = $trimmedLine;
+                if ($insideExists) {
+                    $formatted[] = str_repeat('    ', $existsDepth + 1) . $trimmedLine;
+                } else {
+                    $formatted[] = $trimmedLine;
+                }
                 continue;
             }
 
             // JOINs
             if (preg_match('/^(LEFT|RIGHT|FULL|INNER|OUTER)?\s*JOIN/i', $trimmedLine)) {
-                $formatted[] = '    ' . $trimmedLine;
+                if ($insideExists) {
+                    $formatted[] = str_repeat('    ', $existsDepth + 2) . $trimmedLine;
+                } else {
+                    $formatted[] = '    ' . $trimmedLine;
+                }
                 continue;
             }
 
@@ -159,10 +200,33 @@ class SqlFormatter
                 continue;
             }
 
-            // Closing parenthesis
+            // Check if line ends with closing parenthesis and contains other content
+            if (preg_match('/(.+)\)$/', $trimmedLine, $matches) && !($trimmedLine === ')')) {
+                $content = trim($matches[1]);
+                if ($insideExists) {
+                    $formatted[] = str_repeat('    ', $existsDepth + 2) . $content;
+                    $formatted[] = '    )';
+                    $insideExists = false;
+                    $existsDepth = 0;
+                } else {
+                    $formatted[] = '    ' . $trimmedLine;
+                }
+                continue;
+            }
+
+            // Closing parenthesis alone
             if ($trimmedLine === ')') {
-                $formatted[] = '    )';
-                $insideParentheses = false;
+                if ($insideExists && $parenCount <= 0) {
+                    // This closes the EXISTS
+                    $formatted[] = '    )';
+                    $insideExists = false;
+                    $existsDepth = 0;
+                } else if ($insideParentheses) {
+                    $formatted[] = '    )';
+                    $insideParentheses = false;
+                } else {
+                    $formatted[] = '    )';
+                }
                 continue;
             }
 
@@ -179,13 +243,15 @@ class SqlFormatter
             }
 
             // Regular AND/OR and conditions
-            $formatted[] = '    ' . $trimmedLine;
+            if ($insideExists) {
+                $formatted[] = str_repeat('    ', $existsDepth + 2) . $trimmedLine;
+            } else {
+                $formatted[] = '    ' . $trimmedLine;
+            }
         }
 
         return $formatted;
     }
-
-
 
     /**
      * Converts SQL keywords to uppercase for better readability

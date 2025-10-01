@@ -30,8 +30,23 @@ This is useful for debugging complex queries.
 ```php
 use LaravelDebugHelpers\SqlHelper;
 
-$query = User::where('email', 'test@example.com')
-             ->where('active', 1);
+// Complex query with joins and subqueries
+$query = User::join('profiles', 'users.id', '=', 'profiles.user_id')
+            ->leftJoin('organizations', 'users.organization_id', '=', 'organizations.id')
+            ->whereHas('roles', function($q) {
+                $q->whereIn('name', ['admin', 'moderator']);
+            })
+            ->where('users.status', 'active')
+            ->where('users.email_verified_at', '!=', null)
+            ->where(function($q) {
+                $q->where('profiles.is_public', 1)
+                  ->orWhere('users.account_type', 'premium');
+            })
+            ->where('organizations.country', 'US')
+            ->where('users.created_at', '>=', now()->subMonths(6))
+            ->select('users.id', 'users.name', 'users.email', 'profiles.bio', 'organizations.name as org_name')
+            ->orderBy('users.created_at', 'desc')
+            ->limit(25);
 
 SqlHelper::sqlFromBindings($query);
 ```
@@ -39,7 +54,33 @@ SqlHelper::sqlFromBindings($query);
 Output:
 
 ```sql
-select * from `users` where `email` = 'test@example.com' and `active` = 1
+SELECT
+    `users`.`id`,
+    `users`.`name`,
+    `users`.`email`,
+    `profiles`.`bio`,
+    `organizations`.`name` AS `org_name`
+FROM `users`
+    INNER JOIN `profiles` ON `users`.`id` = `profiles`.`user_id`
+    LEFT JOIN `organizations` ON `users`.`organization_id` = `organizations`.`id`
+    WHERE EXISTS (
+        SELECT
+            *
+        FROM `roles`
+            INNER JOIN `user_roles` ON `roles`.`id` = `user_roles`.`role_id`
+        WHERE `users`.`id` = `user_roles`.`user_id`
+            AND `name` IN ('admin', 'moderator')
+    )
+    AND `users`.`status` = 'active'
+    AND `users`.`email_verified_at` IS NOT NULL
+    AND (
+        `profiles`.`is_public` = 1
+        OR
+        `users`.`account_type` = 'premium'
+    )
+    AND `organizations`.`country` = 'US'
+    AND `users`.`created_at` >= '2025-04-01 14:26:52'
+ORDER BY `users`.`created_at` desc
 ```
 
 If `$print` is `false`, it returns the SQL string instead of printing and stopping.
