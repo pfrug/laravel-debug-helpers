@@ -35,7 +35,7 @@ class SqlFormatter
         $sql = preg_replace_callback('/\b(AND|OR)\b/i', fn($m) => "\n" . strtoupper($m[1]), $sql);
         $sql = preg_replace_callback('/\b(EXISTS)\s*\(/i', fn($m) => strtoupper($m[1]) . " (", $sql);
 
-        return array_filter(array_map('trim', explode("\n", $sql)));
+        return array_values(array_filter(array_map('trim', explode("\n", $sql))));
     }
 
     /**
